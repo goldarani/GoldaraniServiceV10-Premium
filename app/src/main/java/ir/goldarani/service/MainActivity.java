@@ -293,6 +293,16 @@ private void setup(String title) {
     stat(stats, "طلب‌های ثبت‌شده", db.count("debts"), GOLD);
     content.addView(stats);
 
+    int overdueCount = db.countOverdueServices(todayJalali());
+    LinearLayout overdueCard = column();
+    overdueCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+    overdueCard.setBackground(shape(panel(), 16, overdueCount > 0 ? Color.rgb(130, 61, 66) : BLUE));
+    overdueCard.addView(text("سرویس‌های عقب‌افتاده", 13, txt(), true));
+    overdueCard.addView(text(String.valueOf(overdueCount) + " سرویس نیازمند پیگیری", 17,
+            overdueCount > 0 ? Color.rgb(255, 150, 145) : GOLD, true));
+    card(content, overdueCard);
+    overdueCard.setOnClickListener(v -> showServiceList("overdue"));
+
     LinearLayout due = column();
     due.setPadding(dp(15), dp(13), dp(15), dp(13));
     due.setBackground(shape(panel(), 17, dark ? Color.rgb(39, 70, 96) : Color.rgb(211, 224, 237)));
@@ -411,10 +421,27 @@ private void addSectionHeading(String title) {
     service.addView(text("اطلاعات سرویس", 15, GOLD, true));
     EditText date = edit("تاریخ سرویس شمسی (1405/07/01)", todayJalali(), InputType.TYPE_CLASS_TEXT);
     EditText serviceAmount = edit("مبلغ سرویس دوره‌ای (تومان)", "", InputType.TYPE_CLASS_NUMBER);
+    final int[] recurrenceMonths = new int[]{1}; // سرویس نگهداری به‌صورت پیش‌فرض ماهانه است.
+    service.addView(date);
+    service.addView(serviceAmount);
+    final TextView[] recurrenceChoice = new TextView[1];
+    recurrenceChoice[0] = button("تکرار خودکار: هر ماه  ▾", PANEL2, () -> {
+        String[] options = {"هر ماه", "هر ۲ ماه", "هر ۳ ماه", "فقط همین سرویس"};
+        int selected = recurrenceMonths[0] == 1 ? 0 : recurrenceMonths[0] == 2 ? 1 : recurrenceMonths[0] == 3 ? 2 : 3;
+        new AlertDialog.Builder(this).setTitle("فاصلهٔ سرویس دوره‌ای")
+                .setSingleChoiceItems(options, selected, (dialog, which) -> {
+                    recurrenceMonths[0] = which == 3 ? 0 : which + 1;
+                    recurrenceChoice[0].setText("تکرار خودکار: " + options[which] + "  ▾");
+                    dialog.dismiss();
+                }).setNegativeButton("انصراف", null).show();
+    });
+    service.addView(text("زمان‌بندی تکرار سرویس", 12, muted(), true));
+    service.addView(recurrenceChoice[0]);
+    service.addView(text("بعد از تکمیل سرویس، سررسید بعدی با همین مبلغ ثبت می‌شود.", 11, muted(), false));
     EditText repairDetails = edit("شرح خرابی / تعمیرات (اختیاری)", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
     EditText repairAmount = edit("مبلغ تعمیرات (تومان)", "", InputType.TYPE_CLASS_NUMBER);
     EditText notes = edit("توضیحات تکمیلی (اختیاری)", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-    service.addView(date); service.addView(serviceAmount); service.addView(repairDetails); service.addView(repairAmount); service.addView(notes);
+    service.addView(repairDetails); service.addView(repairAmount); service.addView(notes);
     card(content, service);
 
     addButton("ثبت اطلاعات ساختمان و سرویس  ✓", GOLD, () -> {
@@ -432,8 +459,10 @@ private void addSectionHeading(String title) {
         long repairCost = parseAmount(repairAmount.getText().toString().trim());
         String desc = notes.getText().toString().trim();
         db.insertService(a, normalizeJalaliDate(dt), desc, serviceCost,
-                repairDetails.getText().toString().trim(), repairCost, addr, mgr, ph);
-        hideKeyboard(); toast("اطلاعات ساختمان و سرویس ثبت شد"); showServiceList("pending");
+                repairDetails.getText().toString().trim(), repairCost, addr, mgr, ph, recurrenceMonths[0]);
+        hideKeyboard();
+        toast(recurrenceMonths[0] > 0 ? "ساختمان ثبت شد؛ تکرار خودکار فعال است" : "اطلاعات ساختمان و سرویس ثبت شد");
+        showServiceList("pending");
     });
     addButton("مشاهدهٔ پرونده‌ها و سرویس‌ها", PANEL2, () -> showServiceList("all"));
 }
@@ -487,16 +516,23 @@ private void addSectionHeading(String title) {
     private void showServiceList(String filter) {
     page = "services";
     String screenTitle = filter.equals("completed") ? "سرویس‌های انجام‌شده" :
-            filter.equals("today") ? "سرویس‌های امروز" :
-            filter.equals("pending") ? "سرویس‌های انجام‌نشده" : "پرونده‌های ساختمان و سرویس";
+            filter.equals("today") ? "سرویس‌های سررسید امروز" :
+            filter.equals("overdue") ? "سرویس‌های عقب‌افتاده" :
+            filter.equals("pending") ? "سرویس‌های باز" : "پرونده‌های ساختمان و سرویس";
     setup(screenTitle);
-    LinearLayout tabs = row();
-    tabs.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    tab(tabs, "امروز", filter.equals("today"), () -> showServiceList("today"));
-    tab(tabs, "در انتظار", filter.equals("pending"), () -> showServiceList("pending"));
-    tab(tabs, "انجام‌شده", filter.equals("completed"), () -> showServiceList("completed"));
-    tab(tabs, "همه", filter.equals("all"), () -> showServiceList("all"));
-    content.addView(tabs);
+    LinearLayout tabArea = column();
+    LinearLayout tabsTop = row();
+    tabsTop.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+    tab(tabsTop, "سررسید امروز", filter.equals("today"), () -> showServiceList("today"));
+    tab(tabsTop, "عقب‌افتاده", filter.equals("overdue"), () -> showServiceList("overdue"));
+    tab(tabsTop, "سرویس‌های باز", filter.equals("pending"), () -> showServiceList("pending"));
+    tabArea.addView(tabsTop);
+    LinearLayout tabsBottom = row();
+    tabsBottom.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+    tab(tabsBottom, "انجام‌شده", filter.equals("completed"), () -> showServiceList("completed"));
+    tab(tabsBottom, "همهٔ سرویس‌ها", filter.equals("all"), () -> showServiceList("all"));
+    tabArea.addView(tabsBottom);
+    content.addView(tabArea);
 
     LinearLayout summary = column();
     summary.addView(text("امروز  ·  " + todayJalali(), 13, GOLD, true));
@@ -508,8 +544,9 @@ private void addSectionHeading(String title) {
         LinearLayout empty = column(); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(18), dp(28), dp(18), dp(28));
         TextView e = text("—", 28, GOLD, true); e.setGravity(Gravity.CENTER); empty.addView(e);
         String emptyMessage = filter.equals("today") ? "برای امروز سرویسی ثبت نشده است" :
+                filter.equals("overdue") ? "سرویس عقب‌افتاده‌ای ندارید؛ عالی است" :
                 filter.equals("completed") ? "هنوز سرویس انجام‌شده‌ای ثبت نشده است" :
-                filter.equals("pending") ? "سرویس انجام‌نشده‌ای وجود ندارد" : "هنوز سرویسی ثبت نشده است";
+                filter.equals("pending") ? "سرویس بازی وجود ندارد" : "هنوز سرویسی ثبت نشده است";
         TextView msg = text(emptyMessage, 14, muted(), false); msg.setGravity(Gravity.CENTER); empty.addView(msg);
         card(content, empty);
     }
@@ -519,13 +556,21 @@ private void addSectionHeading(String title) {
         boolean done = c.getInt(4) == 1;
         long serviceCost = c.getLong(5), repairCost = c.getLong(7);
         String repairDetails = c.getString(6), address = c.getString(8), manager = c.getString(9), phone = c.getString(10);
+        int recurrenceMonths = c.getInt(11);
+        long recurrenceGroup = c.getLong(12);
+        String currentToday = todayJalali();
+        boolean overdue = !done && date != null && date.compareTo(currentToday) < 0;
+        boolean dueToday = !done && date != null && date.equals(currentToday);
+        String statusLabel = done ? "انجام شد" : overdue ? "عقب‌افتاده" : dueToday ? "سررسید امروز" : "در انتظار";
+        int statusText = done ? Color.rgb(145, 221, 192) : overdue ? Color.rgb(255, 157, 151) : dueToday ? GOLD : muted();
+        int statusBg = done ? Color.rgb(17, 64, 58) : overdue ? Color.rgb(83, 37, 44) : dueToday ? Color.rgb(65, 51, 28) : panel();
         LinearLayout item = column();
         LinearLayout titleRow = row();
         titleRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        TextView badge = text(done ? "انجام شد" : "در انتظار", 10, done ? Color.rgb(145, 221, 192) : GOLD, true);
+        TextView badge = text(statusLabel, 10, statusText, true);
         badge.setGravity(Gravity.CENTER);
         badge.setPadding(dp(9), dp(5), dp(9), dp(5));
-        badge.setBackground(shape(done ? Color.rgb(17, 64, 58) : Color.rgb(65, 51, 28), 10, 0));
+        badge.setBackground(shape(statusBg, 10, 0));
         titleRow.addView(badge);
         TextView nm = text(a, 16, txt(), true);
         titleRow.addView(nm, new LinearLayout.LayoutParams(0, -2, 1));
@@ -535,7 +580,10 @@ private void addSectionHeading(String title) {
         item.addView(text("مدیر ساختمان: " + (manager == null || manager.isEmpty() ? "—" : manager), 12, txt(), false));
         item.addView(text("شماره تماس: " + (phone == null || phone.isEmpty() ? "—" : phone), 12, muted(), false));
         item.addView(text("آدرس: " + (address == null || address.isEmpty() ? "—" : address), 12, muted(), false));
-        item.addView(text("تاریخ سرویس: " + (date == null ? "—" : date), 12, GOLD, true));
+        item.addView(text("تاریخ سررسید: " + (date == null ? "—" : date), 12, GOLD, true));
+        if (recurrenceMonths > 0) {
+            item.addView(text("سرویس دوره‌ای: " + recurrenceLabel(recurrenceMonths) + " · مبلغ برای دوره‌های بعد حفظ می‌شود", 11, muted(), false));
+        }
         if (details != null && !details.isEmpty()) item.addView(text("توضیحات: " + details, 12, muted(), false));
         item.addView(text("هزینهٔ سرویس: " + money(serviceCost) + " تومان", 12, txt(), false));
         if (repairDetails != null && !repairDetails.isEmpty()) item.addView(text("شرح خرابی: " + repairDetails, 12, muted(), false));
@@ -545,9 +593,21 @@ private void addSectionHeading(String title) {
         actions.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         if (!done) smallAction(actions, "✓  انجام شد", Color.rgb(36, 105, 93), () ->
                 new AlertDialog.Builder(this).setTitle("تأیید انجام سرویس")
-                        .setMessage("آیا سرویس «" + a + "» انجام شده است؟")
-                        .setPositiveButton("بله، انجام شد", (d, w) -> { db.markServiceDone(id); showServiceList(filter); })
+                        .setMessage(recurrenceMonths > 0
+                                ? "سرویس «" + a + "» انجام شده است؟ سررسید بعدی به‌صورت خودکار ایجاد می‌شود."
+                                : "آیا سرویس «" + a + "» انجام شده است؟")
+                        .setPositiveButton("بله، انجام شد", (d, w) -> {
+                            String nextDate = db.markServiceDoneAndScheduleNext(id, todayJalali());
+                            if (nextDate != null) toast("سرویس انجام شد؛ سررسید بعدی: " + nextDate);
+                            else toast("سرویس انجام‌شده ثبت شد");
+                            showServiceList(filter);
+                        })
                         .setNegativeButton("انصراف", null).show());
+        if (recurrenceMonths > 0 && recurrenceGroup > 0) {
+            smallAction(actions, "تغییر مبلغ دوره‌ای", PANEL2, () -> changeRecurringAmount(recurrenceGroup, serviceCost, filter));
+        } else if (!done) {
+            smallAction(actions, "فعال‌کردن تکرار", PANEL2, () -> enableRecurrenceForExistingService(id, date, filter));
+        }
         smallAction(actions, "حذف", Color.rgb(142, 55, 65), () -> confirmDelete(id, "services"));
         item.addView(actions);
         card(content, item);
@@ -556,6 +616,55 @@ private void addSectionHeading(String title) {
     addButton("+ ثبت پرونده ساختمان و سرویس", GOLD, () -> showForm("services"));
     addButton("بازگشت به خانه", PANEL2, () -> showHome());
 }
+
+    private int jalaliDay(String date) {
+        if (date == null) return 0;
+        String[] parts = normalizeJalaliDate(date).split("/");
+        if (parts.length != 3) return 0;
+        try { return Integer.parseInt(parts[2]); } catch (Exception ignored) { return 0; }
+    }
+
+    private String recurrenceLabel(int months) {
+        if (months == 1) return "ماهانه";
+        if (months == 2) return "هر دو ماه";
+        if (months == 3) return "هر سه ماه";
+        return "تک‌سرویس";
+    }
+
+    private void enableRecurrenceForExistingService(int serviceId, String dueDate, String filter) {
+        String[] options = {"هر ماه", "هر ۲ ماه", "هر ۳ ماه"};
+        new AlertDialog.Builder(this)
+                .setTitle("فعال‌کردن سرویس دوره‌ای")
+                .setMessage("پس از انجام این سرویس، سررسید بعدی خودکار ساخته می‌شود.")
+                .setItems(options, (dialog, which) -> {
+                    int interval = which + 1;
+                    boolean enabled = db.enableRecurrence(serviceId, interval, dueDate);
+                    toast(enabled ? "تکرار " + recurrenceLabel(interval) + " فعال شد" : "این سرویس قابل تغییر نیست");
+                    showServiceList(filter);
+                })
+                .setNegativeButton("انصراف", null)
+                .show();
+    }
+
+    private void changeRecurringAmount(long groupId, long currentAmount, String filter) {
+        long amountToShow = db.openRecurringAmount(groupId, currentAmount);
+        EditText amount = edit("مبلغ جدید سرویس (تومان)", String.valueOf(amountToShow), InputType.TYPE_CLASS_NUMBER);
+        LinearLayout wrap = column();
+        wrap.setPadding(dp(16), dp(6), dp(16), 0);
+        wrap.addView(text("این تغییر روی سرویس‌های انجام‌نشدهٔ همین برنامهٔ دوره‌ای اعمال می‌شود؛ هزینه‌های تعمیر قبلی تغییر نمی‌کنند.", 12, muted(), false));
+        wrap.addView(amount);
+        new AlertDialog.Builder(this)
+                .setTitle("تغییر مبلغ سرویس‌های آینده")
+                .setView(wrap)
+                .setPositiveButton("ذخیرهٔ مبلغ", (dialog, which) -> {
+                    long updatedAmount = parseAmount(amount.getText().toString());
+                    int changed = db.updateRecurringAmount(groupId, updatedAmount);
+                    toast(changed > 0 ? "مبلغ سرویس‌های باز به‌روزرسانی شد" : "سرویس بازی برای تغییر مبلغ پیدا نشد");
+                    showServiceList(filter);
+                })
+                .setNegativeButton("انصراف", null)
+                .show();
+    }
 
     private void tab(LinearLayout parent, String label, boolean selected, Runnable action) {
     TextView t = text(label, 11, selected ? NAVY : txt(), true);
@@ -602,6 +711,31 @@ private void addSectionHeading(String title) {
         if(value==null) return false;
         String d=value.trim().replace('-', '/').replace('٫','/');
         return d.matches("\\d{4}/\\d{1,2}/\\d{1,2}") || d.matches("[۰-۹]{4}/[۰-۹]{1,2}/[۰-۹]{1,2}");
+    }
+
+    private String addJalaliMonths(String inputDate, int monthsToAdd, int preferredDay) {
+        String normalized = normalizeJalaliDate(inputDate);
+        if (!validDate(normalized)) normalized = todayJalali();
+        String[] parts = normalized.split("/");
+        int year = Integer.parseInt(parts[0]);
+        int month = Integer.parseInt(parts[1]);
+        int day = Integer.parseInt(parts[2]);
+        if (preferredDay <= 0 || preferredDay > 31) preferredDay = day;
+        long monthIndex = (long) year * 12L + (month - 1) + monthsToAdd;
+        int targetYear = (int) (monthIndex / 12L);
+        int targetMonth = (int) (monthIndex % 12L) + 1;
+        int maxDay;
+        if (targetMonth <= 6) maxDay = 31;
+        else if (targetMonth <= 11) maxDay = 30;
+        else maxDay = isJalaliLeapYear(targetYear) ? 30 : 29;
+        int targetDay = Math.min(preferredDay, maxDay);
+        return String.format(java.util.Locale.US, "%04d/%02d/%02d", targetYear, targetMonth, targetDay);
+    }
+
+    // The 33-year Persian-calendar cycle covers modern operational dates well.
+    private boolean isJalaliLeapYear(int year) {
+        int r = year % 33;
+        return r == 1 || r == 5 || r == 9 || r == 13 || r == 17 || r == 22 || r == 26 || r == 30;
     }
 
     private String todayJalali() {
@@ -758,9 +892,9 @@ private class IconView extends View {
 }
 
         private class Db extends SQLiteOpenHelper {
-        Db(Context c){super(c,"goldarani_local.db",null,4);}
+        Db(Context c){super(c,"goldarani_local.db",null,6);}
         @Override public void onCreate(SQLiteDatabase d) {
-            d.execSQL("CREATE TABLE services (_id INTEGER PRIMARY KEY AUTOINCREMENT, a TEXT, b TEXT, c TEXT, completed INTEGER NOT NULL DEFAULT 0, service_amount INTEGER NOT NULL DEFAULT 0, repair_details TEXT, repair_amount INTEGER NOT NULL DEFAULT 0, address TEXT, manager TEXT, manager_phone TEXT)");
+            d.execSQL("CREATE TABLE services (_id INTEGER PRIMARY KEY AUTOINCREMENT, a TEXT, b TEXT, c TEXT, completed INTEGER NOT NULL DEFAULT 0, service_amount INTEGER NOT NULL DEFAULT 0, repair_details TEXT, repair_amount INTEGER NOT NULL DEFAULT 0, address TEXT, manager TEXT, manager_phone TEXT, recurrence_months INTEGER NOT NULL DEFAULT 0, recurrence_group INTEGER NOT NULL DEFAULT 0, recurrence_day INTEGER NOT NULL DEFAULT 0)");
             d.execSQL("CREATE TABLE buildings (_id INTEGER PRIMARY KEY AUTOINCREMENT, a TEXT, b TEXT, c TEXT)");
             d.execSQL("CREATE TABLE debts (_id INTEGER PRIMARY KEY AUTOINCREMENT, a TEXT, b TEXT, c TEXT)");
         }
@@ -776,23 +910,104 @@ private class IconView extends View {
                 d.execSQL("ALTER TABLE services ADD COLUMN manager TEXT");
                 d.execSQL("ALTER TABLE services ADD COLUMN manager_phone TEXT");
             }
+            if(oldV<5) {
+                d.execSQL("ALTER TABLE services ADD COLUMN recurrence_months INTEGER NOT NULL DEFAULT 0");
+                d.execSQL("ALTER TABLE services ADD COLUMN recurrence_group INTEGER NOT NULL DEFAULT 0");
+            }
+            if(oldV<6) {
+                d.execSQL("ALTER TABLE services ADD COLUMN recurrence_day INTEGER NOT NULL DEFAULT 0");
+                d.execSQL("UPDATE services SET recurrence_day=CAST(substr(b,9,2) AS INTEGER) WHERE recurrence_months>0 AND recurrence_day=0 AND b IS NOT NULL AND length(b)>=10");
+            }
         }
         void insert(String table,String a,String b,String c){getWritableDatabase().execSQL("INSERT INTO "+table+"(a,b,c) VALUES(?,?,?)",new Object[]{a,b,c});}
-        void insertService(String a,String date,String details,long serviceAmount,String repairDetails,long repairAmount,String address,String manager,String phone){
-            getWritableDatabase().execSQL("INSERT INTO services(a,b,c,completed,service_amount,repair_details,repair_amount,address,manager,manager_phone) VALUES(?,?,?,0,?,?,?,?,?,?)",new Object[]{a,date,details,serviceAmount,repairDetails,repairAmount,address,manager,phone});
+        long insertService(String a,String date,String details,long serviceAmount,String repairDetails,long repairAmount,String address,String manager,String phone,int recurrenceMonths){
+            SQLiteDatabase w = getWritableDatabase();
+            ContentValues values = new ContentValues();
+            values.put("a", a); values.put("b", date); values.put("c", details);
+            values.put("completed", 0); values.put("service_amount", serviceAmount);
+            values.put("repair_details", repairDetails); values.put("repair_amount", repairAmount);
+            values.put("address", address); values.put("manager", manager); values.put("manager_phone", phone);
+            values.put("recurrence_months", recurrenceMonths); values.put("recurrence_group", 0);
+            values.put("recurrence_day", recurrenceMonths > 0 ? jalaliDay(date) : 0);
+            long id = w.insertOrThrow("services", null, values);
+            if (recurrenceMonths > 0) {
+                ContentValues group = new ContentValues(); group.put("recurrence_group", id);
+                w.update("services", group, "_id=?", new String[]{String.valueOf(id)});
+            }
+            return id;
         }
         void delete(int id,String table){getWritableDatabase().delete(table,"_id=?",new String[]{String.valueOf(id)});}
         Cursor list(String table){return getReadableDatabase().rawQuery("SELECT _id,a,b,c FROM "+table+" ORDER BY _id DESC",null);}
         Cursor serviceList(String filter,String today){
             String where="";
             if(filter.equals("today")) where=" WHERE completed=0 AND b=?";
+            else if(filter.equals("overdue")) where=" WHERE completed=0 AND b<?";
             else if(filter.equals("pending")) where=" WHERE completed=0";
             else if(filter.equals("completed")) where=" WHERE completed=1";
-            String sql="SELECT _id,a,b,c,completed,service_amount,repair_details,repair_amount,address,manager,manager_phone FROM services"+where+" ORDER BY b ASC, _id DESC";
-            return filter.equals("today") ? getReadableDatabase().rawQuery(sql,new String[]{today}) : getReadableDatabase().rawQuery(sql,null);
+            String sql="SELECT _id,a,b,c,completed,service_amount,repair_details,repair_amount,address,manager,manager_phone,recurrence_months,recurrence_group,recurrence_day FROM services"+where+" ORDER BY b ASC, _id DESC";
+            return (filter.equals("today") || filter.equals("overdue"))
+                    ? getReadableDatabase().rawQuery(sql,new String[]{today})
+                    : getReadableDatabase().rawQuery(sql,null);
         }
-        void markServiceDone(int id){getWritableDatabase().execSQL("UPDATE services SET completed=1 WHERE _id=?",new Object[]{id});}
+        String markServiceDoneAndScheduleNext(int id, String today){
+            SQLiteDatabase w = getWritableDatabase();
+            String nextDate = null;
+            w.beginTransaction();
+            Cursor c = null;
+            try {
+                c = w.rawQuery("SELECT a,b,c,service_amount,address,manager,manager_phone,recurrence_months,recurrence_group,completed,recurrence_day FROM services WHERE _id=?", new String[]{String.valueOf(id)});
+                if (!c.moveToFirst() || c.getInt(9) == 1) return null;
+                String name=c.getString(0), dueDate=c.getString(1), details=c.getString(2);
+                long amount=c.getLong(3);
+                String address=c.getString(4), manager=c.getString(5), phone=c.getString(6);
+                int interval=c.getInt(7); long groupId=c.getLong(8);
+                int anchorDay = c.getInt(10);
+                if (anchorDay <= 0) anchorDay = jalaliDay(dueDate);
+                c.close(); c = null;
+                ContentValues done = new ContentValues(); done.put("completed", 1);
+                int changed = w.update("services", done, "_id=? AND completed=0", new String[]{String.valueOf(id)});
+                if (changed == 1 && interval > 0) {
+                    if (groupId <= 0) { groupId = id; ContentValues group = new ContentValues(); group.put("recurrence_group", groupId); w.update("services", group, "_id=?", new String[]{String.valueOf(id)}); }
+                    nextDate = addJalaliMonths(dueDate, interval, anchorDay);
+                    int guard = 0;
+                    while (nextDate.compareTo(normalizeJalaliDate(today)) <= 0 && guard++ < 120) nextDate = addJalaliMonths(nextDate, interval, anchorDay);
+                    ContentValues future = new ContentValues();
+                    future.put("a", name); future.put("b", nextDate); future.put("c", details);
+                    future.put("completed", 0); future.put("service_amount", amount);
+                    future.put("repair_details", ""); future.put("repair_amount", 0);
+                    future.put("address", address); future.put("manager", manager); future.put("manager_phone", phone);
+                    future.put("recurrence_months", interval); future.put("recurrence_group", groupId);
+                    future.put("recurrence_day", anchorDay);
+                    w.insertOrThrow("services", null, future);
+                }
+                w.setTransactionSuccessful();
+                return nextDate;
+            } finally {
+                if (c != null) c.close();
+                w.endTransaction();
+            }
+        }
+        boolean enableRecurrence(int serviceId, int interval, String dueDate){
+            if (interval < 1 || interval > 3) return false;
+            ContentValues values = new ContentValues();
+            values.put("recurrence_months", interval);
+            values.put("recurrence_group", serviceId);
+            values.put("recurrence_day", jalaliDay(dueDate));
+            return getWritableDatabase().update("services", values, "_id=? AND completed=0", new String[]{String.valueOf(serviceId)}) == 1;
+        }
+        long openRecurringAmount(long groupId, long fallback){
+            Cursor c = getReadableDatabase().rawQuery("SELECT service_amount FROM services WHERE recurrence_group=? AND completed=0 ORDER BY b ASC, _id DESC LIMIT 1", new String[]{String.valueOf(groupId)});
+            long amount = fallback;
+            if (c.moveToFirst()) amount = c.getLong(0);
+            c.close();
+            return amount;
+        }
+        int updateRecurringAmount(long groupId, long amount){
+            ContentValues values = new ContentValues(); values.put("service_amount", amount);
+            return getWritableDatabase().update("services", values, "recurrence_group=? AND completed=0", new String[]{String.valueOf(groupId)});
+        }
         int countTodayServices(String today){Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM services WHERE completed=0 AND b=?",new String[]{today});int n=0;if(c.moveToFirst())n=c.getInt(0);c.close();return n;}
+        int countOverdueServices(String today){Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM services WHERE completed=0 AND b<?",new String[]{today});int n=0;if(c.moveToFirst())n=c.getInt(0);c.close();return n;}
         long totalDebts(){
             long total=0;
             Cursor c=getReadableDatabase().rawQuery("SELECT b FROM debts",null);
