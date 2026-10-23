@@ -3,9 +3,11 @@ package ir.goldarani.service;
 import android.app.*;
 import android.os.Bundle;
 import android.content.*;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.view.*;
 import android.view.inputmethod.InputMethodManager;
@@ -16,13 +18,13 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 public class MainActivity extends Activity {
-    private final int NAVY = Color.rgb(5,17,32);
-    private final int PANEL = Color.rgb(11,31,51);
-    private final int PANEL2 = Color.rgb(17,42,66);
-    private final int GOLD = Color.rgb(235,181,73);
-    private final int WHITE = Color.rgb(242,246,251);
-    private final int MUTED = Color.rgb(153,174,196);
-    private final int BLUE = Color.rgb(41,72,101);
+    private final int NAVY = Color.rgb(6,16,29);
+    private final int PANEL = Color.rgb(12,29,47);
+    private final int PANEL2 = Color.rgb(19,42,63);
+    private final int GOLD = Color.rgb(229,177,72);
+    private final int WHITE = Color.rgb(246,248,252);
+    private final int MUTED = Color.rgb(157,176,196);
+    private final int BLUE = Color.rgb(29,55,79);
     private final int TEAL = Color.rgb(36,105,93);
     private final int ORANGE = Color.rgb(178,119,41);
     private final int PURPLE = Color.rgb(88,102,124);
@@ -31,6 +33,7 @@ public class MainActivity extends Activity {
     private boolean dark = true;
     private float fontScale = 1.0f;
     private LinearLayout root, content;
+    private int entranceIndex = 0;
     private String page = "home";
     private Typeface iranSans;
 
@@ -56,9 +59,31 @@ public class MainActivity extends Activity {
 
     private GradientDrawable shape(int color, int radius, int stroke) {
         GradientDrawable d = new GradientDrawable();
-        d.setColor(color); d.setCornerRadius(radius * getResources().getDisplayMetrics().density);
-        if (stroke != 0) d.setStroke((int)(1 * getResources().getDisplayMetrics().density), stroke);
+        d.setColor(color);
+        d.setCornerRadius(dp(radius));
+        if (stroke != 0) d.setStroke(dp(1), stroke);
         return d;
+    }
+
+    private GradientDrawable gradientShape(int startColor, int endColor, int radius, int stroke) {
+        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{startColor, endColor});
+        d.setCornerRadius(dp(radius));
+        if (stroke != 0) d.setStroke(dp(1), stroke);
+        return d;
+    }
+
+    private android.graphics.drawable.Drawable ripple(GradientDrawable base) {
+        int rippleColor = dark ? Color.argb(38, 245, 198, 105) : Color.argb(28, 20, 45, 70);
+        return new RippleDrawable(ColorStateList.valueOf(rippleColor), base, null);
+    }
+
+    private void animateIn(View view) {
+        int delay = Math.min(entranceIndex * 22, 132);
+        entranceIndex++;
+        view.setAlpha(0f);
+        view.setTranslationY(dp(8));
+        view.animate().alpha(1f).translationY(0f).setDuration(260).setStartDelay(delay).start();
     }
 
     private TextView text(String s, int size, int color, boolean bold) {
@@ -69,6 +94,7 @@ public class MainActivity extends Activity {
         t.setTypeface(iranSans != null ? Typeface.create(iranSans, bold ? Typeface.BOLD : Typeface.NORMAL)
                                        : Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
         t.setPadding(dp(2), dp(3), dp(2), dp(3));
+        t.setLineSpacing(dp(1), 1.02f);
         return t;
     }
 
@@ -84,322 +110,490 @@ public class MainActivity extends Activity {
     }
 
 private void setup(String title) {
-    root = column();
-    root.setBackgroundColor(bg());
-    root.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        entranceIndex = 0;
+        root = column();
+        root.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        root.setBackground(gradientShape(
+                dark ? Color.rgb(5, 14, 26) : Color.rgb(235, 242, 249),
+                dark ? Color.rgb(8, 24, 39) : Color.rgb(248, 250, 253), 0, 0));
 
-    LinearLayout bar = row();
-    bar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    bar.setPadding(dp(16), dp(10), dp(16), dp(10));
-    GradientDrawable barBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[]{dark ? Color.rgb(9, 27, 46) : Color.rgb(248, 251, 255),
-                      dark ? Color.rgb(5, 17, 31) : Color.rgb(235, 242, 249)});
-    barBg.setStroke(dp(1), dark ? Color.rgb(34, 62, 87) : Color.rgb(211, 224, 237));
-    barBg.setCornerRadius(dp(18));
-    bar.setBackground(barBg);
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            getWindow().setStatusBarColor(dark ? NAVY : Color.rgb(235, 242, 249));
+            getWindow().setNavigationBarColor(dark ? NAVY : Color.rgb(235, 242, 249));
+            getWindow().getDecorView().setSystemUiVisibility(dark ? 0 :
+                    (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR));
+        }
 
-    TextView back = text("‹", 28, GOLD, true);
-    back.setGravity(Gravity.CENTER);
-    back.setBackground(shape(dark ? Color.rgb(17, 39, 60) : Color.WHITE, 15,
-            dark ? Color.rgb(43, 73, 100) : Color.rgb(208, 222, 235)));
-    bar.addView(back, new LinearLayout.LayoutParams(dp(42), dp(42)));
-    back.setOnClickListener(v -> showHome());
+        LinearLayout bar = row();
+        bar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        bar.setPadding(dp(12), dp(11), dp(13), dp(11));
+        bar.setBackground(gradientShape(
+                dark ? Color.rgb(19, 42, 63) : Color.WHITE,
+                dark ? Color.rgb(10, 25, 42) : Color.rgb(244, 248, 252), 22,
+                dark ? Color.rgb(43, 68, 89) : Color.rgb(213, 225, 237)));
+        bar.setElevation(dp(3));
 
-    LinearLayout titleStack = column();
-    titleStack.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-    titleStack.setPadding(dp(12), 0, dp(8), 0);
-    TextView en = text("GOLDARANI  /  SERVICE", 9, GOLD, true);
-    en.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-    titleStack.addView(en);
-    TextView fa = text(title, 17, txt(), true);
-    fa.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-    titleStack.addView(fa);
-    bar.addView(titleStack, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView back = text("‹", 28, GOLD, true);
+        back.setGravity(Gravity.CENTER);
+        back.setBackground(ripple(shape(dark ? Color.rgb(24, 48, 70) : Color.rgb(245, 248, 252), 14,
+                dark ? Color.rgb(59, 79, 97) : Color.rgb(216, 226, 237))));
+        bar.addView(back, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        back.setOnClickListener(v -> showHome());
 
-    TextView mark = text("G", 24, NAVY, true);
-    mark.setGravity(Gravity.CENTER);
-    mark.setBackground(shape(GOLD, 15, Color.rgb(255, 226, 163)));
-    bar.addView(mark, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout titleStack = column();
+        titleStack.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        titleStack.setPadding(dp(12), 0, dp(9), 0);
+        TextView en = text("G O L D A R A N I   •   E L E V A T O R", 8, GOLD, true);
+        en.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        titleStack.addView(en);
+        TextView fa = text(title, 17, txt(), true);
+        fa.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        titleStack.addView(fa);
+        bar.addView(titleStack, new LinearLayout.LayoutParams(0, -2, 1));
 
-    LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(-1, -2);
-    barLp.setMargins(dp(10), dp(7), dp(10), dp(7));
-    root.addView(bar, barLp);
-    View line = new View(this);
-    line.setBackgroundColor(dark ? Color.rgb(43, 76, 102) : Color.rgb(215, 225, 236));
-    root.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
+        TextView mark = text("G", 23, NAVY, true);
+        mark.setGravity(Gravity.CENTER);
+        mark.setBackground(ripple(gradientShape(Color.rgb(248, 211, 125), GOLD, 15, Color.rgb(255, 231, 176))));
+        mark.setElevation(dp(2));
+        bar.addView(mark, new LinearLayout.LayoutParams(dp(43), dp(43)));
 
-    ScrollView sc = new ScrollView(this);
-    sc.setFillViewport(false);
-    sc.setClipToPadding(false);
-    content = column();
-    content.setPadding(dp(16), dp(14), dp(16), dp(20));
-    sc.addView(content);
-    root.addView(sc, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(-1, -2);
+        barLp.setMargins(dp(12), dp(9), dp(12), dp(8));
+        root.addView(bar, barLp);
 
-    if (!"ورود به سرویس‌یار".equals(title)) addBottomNav();
-    setContentView(root);
-}
+        ScrollView sc = new ScrollView(this);
+        sc.setFillViewport(false);
+        sc.setClipToPadding(false);
+        sc.setVerticalScrollBarEnabled(false);
+        sc.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        content = column();
+        content.setPadding(dp(16), dp(11), dp(16), dp(22));
+        sc.addView(content);
+        root.addView(sc, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        if (!"ورود به سرویس‌یار".equals(title)) addBottomNav();
+        setContentView(root);
+    }
 
     private TextView button(String label, int color, Runnable action) {
-    boolean primary = color == GOLD;
-    TextView b = text(label, 14, primary ? NAVY : txt(), true);
-    b.setGravity(Gravity.CENTER);
-    b.setMinHeight(dp(48));
-    b.setPadding(dp(16), dp(12), dp(16), dp(12));
-    b.setBackground(shape(primary ? GOLD : panel(), 14,
-            primary ? Color.rgb(255, 224, 147) : (dark ? Color.rgb(43, 73, 98) : Color.rgb(210, 223, 235))));
-    b.setOnClickListener(v -> action.run());
-    return b;
-}
+        boolean primary = color == GOLD;
+        TextView b = text(label, 13, primary ? NAVY : txt(), true);
+        b.setGravity(Gravity.CENTER);
+        b.setMinHeight(dp(46));
+        b.setPadding(dp(15), dp(11), dp(15), dp(11));
+        GradientDrawable base = primary
+                ? gradientShape(Color.rgb(247, 211, 128), GOLD, 15, Color.rgb(255, 229, 169))
+                : gradientShape(dark ? Color.rgb(20, 43, 64) : Color.rgb(251, 253, 255),
+                    dark ? Color.rgb(13, 30, 48) : Color.rgb(241, 246, 251), 15,
+                    dark ? Color.rgb(43, 69, 91) : Color.rgb(210, 223, 235));
+        b.setBackground(ripple(base));
+        if (primary) b.setElevation(dp(2));
+        b.setOnClickListener(v -> action.run());
+        return b;
+    }
 
     private void addButton(String label, int color, Runnable action) {
-    TextView b = button(label, color, action);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.setMargins(0, dp(5), 0, dp(5));
-    content.addView(b, lp);
-}
+        TextView b = button(label, color, action);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, dp(5), 0, dp(5));
+        content.addView(b, lp);
+        animateIn(b);
+    }
 
     private void card(LinearLayout parent, View child) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.setMargins(0, dp(5), 0, dp(7));
-        child.setPadding(dp(16), dp(14), dp(16), dp(14));
-        // Keep custom gradient backgrounds (for example, the dashboard hero).
+        lp.setMargins(0, dp(5), 0, dp(8));
+        child.setPadding(dp(16), dp(15), dp(16), dp(15));
         if (child.getBackground() == null) {
-            child.setBackground(shape(panel(), 18,
-                    dark ? Color.rgb(33, 63, 88) : Color.rgb(211, 224, 237)));
+            child.setBackground(gradientShape(
+                    dark ? Color.rgb(17, 39, 59) : Color.WHITE,
+                    dark ? Color.rgb(11, 28, 45) : Color.rgb(248, 251, 254), 20,
+                    dark ? Color.rgb(35, 61, 82) : Color.rgb(215, 226, 237)));
         }
+        child.setElevation(dp(2));
         parent.addView(child, lp);
+        animateIn(child);
     }
 
     private EditText edit(String hint, String value, int inputType) {
-    EditText e = new EditText(this);
-    e.setText(value);
-    e.setHint(hint);
-    e.setTextColor(txt());
-    e.setHintTextColor(muted());
-    e.setTextSize(14 * fontScale);
-    e.setTypeface(iranSans != null ? iranSans : Typeface.create("sans-serif", Typeface.NORMAL));
-    e.setInputType(inputType);
-    boolean multiline = (inputType & InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0;
-    e.setSingleLine(!multiline);
-    if (multiline) e.setMinLines(2);
-    e.setGravity(Gravity.RIGHT | (multiline ? Gravity.TOP : Gravity.CENTER_VERTICAL));
-    e.setTextDirection(View.TEXT_DIRECTION_RTL);
-    e.setPadding(dp(14), dp(11), dp(14), dp(11));
-    e.setBackground(shape(dark ? Color.rgb(8, 25, 42) : Color.rgb(249, 251, 254), 13,
-            dark ? Color.rgb(42, 70, 95) : Color.rgb(199, 214, 228)));
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.setMargins(0, dp(5), 0, dp(7));
-    e.setLayoutParams(lp);
-    return e;
-}
+        EditText e = new EditText(this);
+        e.setText(value);
+        e.setHint(hint);
+        e.setTextColor(txt());
+        e.setHintTextColor(muted());
+        e.setTextSize(14 * fontScale);
+        e.setTypeface(iranSans != null ? iranSans : Typeface.create("sans-serif", Typeface.NORMAL));
+        e.setInputType(inputType);
+        boolean multiline = (inputType & InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0;
+        e.setSingleLine(!multiline);
+        if (multiline) e.setMinLines(2);
+        e.setGravity(Gravity.RIGHT | (multiline ? Gravity.TOP : Gravity.CENTER_VERTICAL));
+        e.setTextDirection(View.TEXT_DIRECTION_RTL);
+        e.setPadding(dp(14), dp(12), dp(14), dp(12));
+        e.setBackground(gradientShape(dark ? Color.rgb(7, 21, 36) : Color.rgb(249, 251, 254),
+                dark ? Color.rgb(10, 28, 45) : Color.WHITE, 14,
+                dark ? Color.rgb(41, 66, 87) : Color.rgb(203, 218, 232)));
+        e.setOnFocusChangeListener((v, hasFocus) -> {
+            int stroke = hasFocus ? GOLD : (dark ? Color.rgb(41, 66, 87) : Color.rgb(203, 218, 232));
+            e.setBackground(gradientShape(dark ? Color.rgb(7, 21, 36) : Color.rgb(249, 251, 254),
+                    dark ? Color.rgb(10, 28, 45) : Color.WHITE, 14, stroke));
+            if (hasFocus) e.animate().translationY(-dp(1)).setDuration(120).start();
+            else e.animate().translationY(0).setDuration(120).start();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, dp(5), 0, dp(8));
+        e.setLayoutParams(lp);
+        return e;
+    }
 
     private void showLogin() {
-    page = "login";
-    setup("ورود به سرویس‌یار");
-    LinearLayout hero = column();
-    hero.setGravity(Gravity.CENTER);
-    hero.setPadding(dp(12), dp(22), dp(12), dp(20));
-    TextView icon = text("G", 42, NAVY, true);
-    icon.setGravity(Gravity.CENTER);
-    icon.setBackground(shape(GOLD, 28, Color.rgb(255, 224, 147)));
-    LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(96), dp(96));
-    ip.gravity = Gravity.CENTER;
-    hero.addView(icon, ip);
-    TextView title = text("سرویس‌یار گلدرانی", 24, GOLD, true);
-    title.setGravity(Gravity.CENTER);
-    title.setPadding(0, dp(12), 0, dp(2));
-    hero.addView(title);
-    TextView sub = text("مدیریت سرویس آسانسور، ساده و منظم", 14, muted(), false);
-    sub.setGravity(Gravity.CENTER);
-    hero.addView(sub);
-    card(content, hero);
+        page = "login";
+        setup("ورود به سرویس‌یار");
+        LinearLayout hero = column();
+        hero.setGravity(Gravity.CENTER);
+        hero.setPadding(dp(20), dp(25), dp(20), dp(23));
+        hero.setBackground(gradientShape(dark ? Color.rgb(24, 52, 76) : Color.WHITE,
+                dark ? Color.rgb(8, 23, 39) : Color.rgb(238, 245, 251), 24,
+                dark ? Color.rgb(67, 84, 96) : Color.rgb(213, 225, 237)));
+        TextView icon = text("G", 43, NAVY, true);
+        icon.setGravity(Gravity.CENTER);
+        icon.setBackground(ripple(gradientShape(Color.rgb(250, 220, 147), GOLD, 22, Color.rgb(255, 233, 185))));
+        icon.setElevation(dp(4));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(88), dp(88));
+        ip.gravity = Gravity.CENTER;
+        hero.addView(icon, ip);
+        TextView title = text("سرویس‌یار گلدرانی", 24, GOLD, true);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, dp(14), 0, dp(4));
+        hero.addView(title);
+        TextView sub = text("مدیریت حرفه‌ای سرویس و نگهداری آسانسور", 13, muted(), false);
+        sub.setGravity(Gravity.CENTER);
+        hero.addView(sub);
+        View divider = new View(this);
+        divider.setBackgroundColor(dark ? Color.rgb(61, 79, 96) : Color.rgb(216, 226, 237));
+        LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(dp(46), dp(3));
+        divLp.gravity = Gravity.CENTER;
+        divLp.setMargins(0, dp(15), 0, dp(3));
+        hero.addView(divider, divLp);
+        card(content, hero);
 
-    LinearLayout form = column();
-    form.addView(text("ورود به حساب کاربری", 16, txt(), true));
-    form.addView(text("برای شروع، نام و شماره تماس را وارد کن.", 12, muted(), false));
-    EditText name = edit("نام شما", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-    EditText phone = edit("شماره تماس", "", InputType.TYPE_CLASS_PHONE);
-    form.addView(name);
-    form.addView(phone);
-    TextView submit = button("ورود به برنامه  ›", GOLD, () -> {
-        String n = name.getText().toString().trim(), p = phone.getText().toString().trim();
-        if (n.isEmpty() || p.isEmpty()) { toast("نام و شماره تماس را وارد کنید"); return; }
-        userName = n; userPhone = p;
-        getSharedPreferences("profile", MODE_PRIVATE).edit().putString("name", n).putString("phone", p).apply();
-        hideKeyboard(); showHome();
-    });
-    LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
-    blp.setMargins(0, dp(7), 0, dp(3));
-    form.addView(submit, blp);
-    card(content, form);
-    TextView foot = text("اطلاعات شما فقط روی همین دستگاه ذخیره می‌شود", 11, muted(), false);
-    foot.setGravity(Gravity.CENTER);
-    content.addView(foot);
-}
+        LinearLayout form = column();
+        form.addView(text("ورود به حساب کاربری", 17, txt(), true));
+        form.addView(text("برای شروع، نام و شماره تماس را وارد کن.", 12, muted(), false));
+        EditText name = edit("نام شما", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        EditText phone = edit("شماره تماس", "", InputType.TYPE_CLASS_PHONE);
+        form.addView(name); form.addView(phone);
+        TextView submit = button("ورود به برنامه   ←", GOLD, () -> {
+            String n = name.getText().toString().trim(), p = phone.getText().toString().trim();
+            if (n.isEmpty() || p.isEmpty()) { toast("نام و شماره تماس را وارد کنید"); return; }
+            userName = n; userPhone = p;
+            getSharedPreferences("profile", MODE_PRIVATE).edit().putString("name", n).putString("phone", p).apply();
+            hideKeyboard(); showHome();
+        });
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
+        blp.setMargins(0, dp(9), 0, dp(3));
+        form.addView(submit, blp);
+        card(content, form);
+        TextView foot = text("اطلاعات شما فقط روی همین دستگاه ذخیره می‌شود", 11, muted(), false);
+        foot.setGravity(Gravity.CENTER);
+        foot.setPadding(0, dp(6), 0, dp(12));
+        content.addView(foot);
+    }
 
     private void showHome() {
-    page = "home";
-    setup("خانه");
+        page = "home";
+        setup("داشبورد");
 
-    LinearLayout welcome = column();
-    welcome.setPadding(dp(17), dp(16), dp(17), dp(16));
-    GradientDrawable heroBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-            new int[]{dark ? Color.rgb(15, 39, 62) : Color.rgb(255, 255, 255),
-                      dark ? Color.rgb(8, 24, 42) : Color.rgb(239, 246, 252)});
-    heroBg.setCornerRadius(dp(22));
-    heroBg.setStroke(dp(1), dark ? Color.rgb(44, 79, 107) : Color.rgb(210, 225, 238));
-    welcome.setBackground(heroBg);
+        // Compact cinematic hero: clear greeting, brand identity, and useful date.
+        LinearLayout hero = row();
+        hero.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        hero.setGravity(Gravity.CENTER_VERTICAL);
+        hero.setPadding(dp(17), dp(18), dp(17), dp(18));
+        hero.setBackground(gradientShape(dark ? Color.rgb(25, 51, 73) : Color.WHITE,
+                dark ? Color.rgb(8, 23, 39) : Color.rgb(238, 245, 251), 24,
+                dark ? Color.rgb(66, 82, 97) : Color.rgb(213, 225, 237)));
+        hero.setElevation(dp(5));
 
-    LinearLayout brandRow = row();
-    brandRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    TextView logo = text("G", 27, NAVY, true);
-    logo.setGravity(Gravity.CENTER);
-    logo.setBackground(shape(GOLD, 16, Color.rgb(255, 224, 151)));
-    brandRow.addView(logo, new LinearLayout.LayoutParams(dp(54), dp(54)));
-    LinearLayout brandText = column();
-    brandText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-    brandText.setPadding(dp(12), 0, 0, 0);
-    brandText.addView(text("سرویس‌یار گلدرانی", 20, GOLD, true));
-    brandText.addView(text("مدیریت هوشمند سرویس آسانسور", 12, muted(), false));
-    brandRow.addView(brandText, new LinearLayout.LayoutParams(0, -2, 1));
-    welcome.addView(brandRow);
-    View sep = new View(this);
-    sep.setBackgroundColor(dark ? Color.rgb(43, 73, 98) : Color.rgb(218, 228, 238));
-    LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(-1, dp(1));
-    sepLp.setMargins(0, dp(12), 0, dp(10));
-    welcome.addView(sep, sepLp);
-    welcome.addView(text("سلام " + userName + " عزیز  👋", 16, txt(), true));
-    welcome.addView(text("کارهای امروزت را مرتب و سریع مدیریت کن.", 12, muted(), false));
-    card(content, welcome);
+        LinearLayout logoWrap = column();
+        logoWrap.setGravity(Gravity.CENTER);
+        logoWrap.setPadding(dp(4), dp(4), dp(4), dp(4));
+        logoWrap.setBackground(gradientShape(dark ? Color.rgb(36, 57, 73) : Color.rgb(248, 241, 221),
+                dark ? Color.rgb(17, 35, 52) : Color.rgb(255, 252, 245), 19,
+                dark ? Color.rgb(89, 79, 55) : Color.rgb(235, 214, 166)));
+        TextView logo = text("G", 35, GOLD, true);
+        logo.setGravity(Gravity.CENTER);
+        logo.setShadowLayer(dp(8), 0, 0, Color.argb(60, 246, 204, 115));
+        logoWrap.addView(logo, new LinearLayout.LayoutParams(dp(57), dp(61)));
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(65), dp(69));
+        logoLp.setMargins(0, 0, dp(14), 0);
+        hero.addView(logoWrap, logoLp);
 
-    addSectionHeading("دسترسی سریع");
-    LinearLayout grid1 = row(); grid1.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    gridTile(grid1, "", "ثبت پرونده ساختمان", GOLD, () -> showForm("services"));
-    gridTile(grid1, "", "سرویس‌های امروز", GOLD, () -> showServiceList("today"));
-    content.addView(grid1);
-    LinearLayout grid2 = row(); grid2.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    gridTile(grid2, "", "انجام‌شده‌ها", GOLD, () -> showServiceList("completed"));
-    gridTile(grid2, "", "همه پرونده‌ها", GOLD, () -> showServiceList("all"));
-    content.addView(grid2);
-    LinearLayout grid3 = row(); grid3.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    gridTile(grid3, "", "طلب‌ها", GOLD, () -> showList("debts"));
-    gridTile(grid3, "", "تنظیمات", GOLD, () -> showSettings());
-    content.addView(grid3);
+        LinearLayout intro = column();
+        intro.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        TextView eyebrow = text("ELEVATOR CARE  /  CONTROL CENTER", 8, GOLD, true);
+        eyebrow.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        eyebrow.setLetterSpacing(0.07f);
+        intro.addView(eyebrow);
+        TextView hello = text("سلام، " + userName, 21, txt(), true);
+        hello.setMaxLines(1);
+        hello.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        intro.addView(hello);
+        intro.addView(text("سرویس‌ها را منظم، سریع و دقیق مدیریت کن.", 11, muted(), false));
+        TextView date = text("●   امروز  " + todayJalali(), 10, GOLD, true);
+        date.setPadding(0, dp(7), 0, 0);
+        intro.addView(date);
+        hero.addView(intro, new LinearLayout.LayoutParams(0, -2, 1));
+        card(content, hero);
 
-    addSectionHeading("خلاصه وضعیت");
-    LinearLayout stats = row(); stats.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    stat(stats, "پرونده‌ها", db.count("services"), GOLD);
-    stat(stats, "طلب‌های ثبت‌شده", db.count("debts"), GOLD);
-    content.addView(stats);
+        addSectionHeading("نمای کلی امروز");
+        LinearLayout stats = row();
+        stats.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        stat(stats, "سرویس امروز", db.countTodayServices(todayJalali()), GOLD);
+        stat(stats, "کل سرویس‌ها", db.count("services"), GOLD);
+        content.addView(stats);
 
-    int overdueCount = db.countOverdueServices(todayJalali());
-    LinearLayout overdueCard = column();
-    overdueCard.setPadding(dp(14), dp(12), dp(14), dp(12));
-    overdueCard.setBackground(shape(panel(), 16, overdueCount > 0 ? Color.rgb(130, 61, 66) : BLUE));
-    overdueCard.addView(text("سرویس‌های عقب‌افتاده", 13, txt(), true));
-    overdueCard.addView(text(String.valueOf(overdueCount) + " سرویس نیازمند پیگیری", 17,
-            overdueCount > 0 ? Color.rgb(255, 150, 145) : GOLD, true));
-    card(content, overdueCard);
-    overdueCard.setOnClickListener(v -> showServiceList("overdue"));
+        int overdueCount = db.countOverdueServices(todayJalali());
+        LinearLayout overdue = row();
+        overdue.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        overdue.setGravity(Gravity.CENTER_VERTICAL);
+        overdue.setPadding(dp(14), dp(13), dp(14), dp(13));
+        overdue.setBackground(ripple(gradientShape(
+                overdueCount > 0 ? (dark ? Color.rgb(68, 35, 43) : Color.rgb(255, 241, 239)) :
+                        (dark ? Color.rgb(17, 39, 57) : Color.rgb(255, 255, 255)),
+                dark ? Color.rgb(12, 28, 44) : Color.rgb(245, 249, 253), 18,
+                overdueCount > 0 ? Color.rgb(145, 69, 74) : (dark ? Color.rgb(41, 66, 86) : Color.rgb(211, 224, 236)))));
+        LinearLayout alertText = column();
+        alertText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        alertText.addView(text("سرویس‌های عقب‌افتاده", 13, txt(), true));
+        alertText.addView(text(overdueCount > 0 ? "نیازمند پیگیری هستند" : "همه‌چیز مرتب است", 11, muted(), false));
+        overdue.addView(alertText, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView overdueCountView = text(String.valueOf(overdueCount), 22,
+                overdueCount > 0 ? Color.rgb(255, 151, 148) : GOLD, true);
+        overdueCountView.setGravity(Gravity.CENTER);
+        overdueCountView.setBackground(shape(overdueCount > 0 ? Color.rgb(91, 43, 51) :
+                (dark ? Color.rgb(31, 52, 69) : Color.rgb(250, 243, 223)), 14, 0));
+        overdue.addView(overdueCountView, new LinearLayout.LayoutParams(dp(48), dp(45)));
+        LinearLayout.LayoutParams overdueLp = new LinearLayout.LayoutParams(-1, -2);
+        overdueLp.setMargins(0, dp(10), 0, dp(4));
+        content.addView(overdue, overdueLp);
+        overdue.setOnClickListener(v -> showServiceList("overdue"));
+        animateIn(overdue);
 
-    LinearLayout due = column();
-    due.setPadding(dp(15), dp(13), dp(15), dp(13));
-    due.setBackground(shape(panel(), 17, dark ? Color.rgb(39, 70, 96) : Color.rgb(211, 224, 237)));
-    due.addView(text("مجموع طلب‌های ثبت‌شده", 13, muted(), true));
-    due.addView(text(money(db.totalDebts()) + " تومان", 22, GOLD, true));
-    due.addView(text("طلب‌ها به‌صورت جدا از هزینهٔ سرویس ثبت می‌شوند.", 11, muted(), false));
-    LinearLayout.LayoutParams dueLp = new LinearLayout.LayoutParams(-1, -2);
-    dueLp.setMargins(0, dp(8), 0, dp(7)); content.addView(due, dueLp);
+        LinearLayout sectionRow = row();
+        sectionRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView quickTitle = text("دسترسی سریع", 17, txt(), true);
+        sectionRow.addView(quickTitle, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView quickCount = text("۶ ابزار", 10, GOLD, true);
+        quickCount.setGravity(Gravity.CENTER);
+        quickCount.setPadding(dp(10), dp(6), dp(10), dp(6));
+        quickCount.setBackground(shape(dark ? Color.rgb(36, 48, 56) : Color.rgb(250, 243, 224), 10,
+                dark ? Color.rgb(83, 72, 48) : Color.rgb(236, 219, 173)));
+        sectionRow.addView(quickCount);
+        LinearLayout.LayoutParams secLp = new LinearLayout.LayoutParams(-1, -2);
+        secLp.setMargins(0, dp(17), 0, dp(7));
+        content.addView(sectionRow, secLp);
 
-    LinearLayout support = column();
-    support.addView(text("پشتیبانی سرویس‌یار", 13, txt(), true));
-    support.addView(text("0912-468-2580", 14, GOLD, true));
-    card(content, support);
-    addButton("تماس با پشتیبانی", PANEL2, () -> dial("09124682580"));
-}
+        LinearLayout grid1 = row(); grid1.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        gridTile(grid1, "", "ثبت پرونده ساختمان", GOLD, () -> showForm("services"));
+        gridTile(grid1, "", "سرویس‌های امروز", GOLD, () -> showServiceList("today"));
+        content.addView(grid1);
+        LinearLayout grid2 = row(); grid2.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        gridTile(grid2, "", "انجام‌شده‌ها", GOLD, () -> showServiceList("completed"));
+        gridTile(grid2, "", "همه پرونده‌ها", GOLD, () -> showServiceList("all"));
+        content.addView(grid2);
+        LinearLayout grid3 = row(); grid3.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        gridTile(grid3, "", "طلب‌ها", GOLD, () -> showList("debts"));
+        gridTile(grid3, "", "تنظیمات", GOLD, () -> showSettings());
+        content.addView(grid3);
+
+        LinearLayout debtCard = row();
+        debtCard.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        debtCard.setGravity(Gravity.CENTER_VERTICAL);
+        debtCard.setPadding(dp(15), dp(13), dp(15), dp(13));
+        debtCard.setBackground(gradientShape(dark ? Color.rgb(18, 42, 61) : Color.WHITE,
+                dark ? Color.rgb(10, 27, 44) : Color.rgb(245, 249, 253), 20,
+                dark ? Color.rgb(51, 74, 89) : Color.rgb(214, 226, 237)));
+        LinearLayout debtText = column();
+        debtText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        debtText.addView(text("مجموع طلب‌های ثبت‌شده", 12, muted(), true));
+        TextView debtAmount = text(money(db.totalDebts()) + " تومان", 19, GOLD, true);
+        debtText.addView(debtAmount);
+        debtCard.addView(debtText, new LinearLayout.LayoutParams(0, -2, 1));
+        IconView debtIcon = new IconView("debts", GOLD);
+        debtIcon.setBackground(shape(dark ? Color.rgb(37, 49, 55) : Color.rgb(251, 244, 228), 15,
+                dark ? Color.rgb(83, 73, 49) : Color.rgb(237, 222, 184)));
+        debtCard.addView(debtIcon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        LinearLayout.LayoutParams debtLp = new LinearLayout.LayoutParams(-1, -2);
+        debtLp.setMargins(0, dp(12), 0, dp(5));
+        content.addView(debtCard, debtLp);
+        debtCard.setOnClickListener(v -> showList("debts"));
+        animateIn(debtCard);
+
+        LinearLayout support = row();
+        support.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        support.setGravity(Gravity.CENTER_VERTICAL);
+        support.setPadding(dp(13), dp(12), dp(13), dp(12));
+        support.setBackground(shape(dark ? Color.rgb(11, 26, 42) : Color.rgb(247, 250, 253), 17,
+                dark ? Color.rgb(34, 56, 75) : Color.rgb(216, 227, 238)));
+        LinearLayout supportText = column();
+        supportText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        supportText.addView(text("پشتیبانی گلدرانی", 12, txt(), true));
+        supportText.addView(text("0912-468-2580", 12, GOLD, true));
+        support.addView(supportText, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView call = text("تماس", 11, NAVY, true);
+        call.setGravity(Gravity.CENTER);
+        call.setPadding(dp(14), dp(9), dp(14), dp(9));
+        call.setBackground(ripple(gradientShape(Color.rgb(247, 211, 128), GOLD, 12, 0)));
+        support.addView(call);
+        LinearLayout.LayoutParams supportLp = new LinearLayout.LayoutParams(-1, -2);
+        supportLp.setMargins(0, dp(3), 0, dp(7));
+        content.addView(support, supportLp);
+        call.setOnClickListener(v -> dial("09124682580"));
+        support.setOnClickListener(v -> dial("09124682580"));
+        animateIn(support);
+    }
 
 private void addSectionHeading(String title) {
-    LinearLayout wrap = row();
-    wrap.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    View accent = new View(this);
-    accent.setBackground(shape(GOLD, 3, 0));
-    wrap.addView(accent, new LinearLayout.LayoutParams(dp(3), dp(22)));
-    TextView label = text(title, 16, txt(), true);
-    LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, -2, 1);
-    tlp.setMargins(dp(9), 0, 0, 0);
-    wrap.addView(label, tlp);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.setMargins(0, dp(7), 0, dp(8));
-    content.addView(wrap, lp);
-}
+        LinearLayout wrap = row();
+        wrap.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        View accent = new View(this);
+        accent.setBackground(gradientShape(Color.rgb(255, 220, 135), GOLD, 3, 0));
+        wrap.addView(accent, new LinearLayout.LayoutParams(dp(3), dp(23)));
+        TextView label = text(title, 16, txt(), true);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, -2, 1);
+        tlp.setMargins(dp(9), 0, 0, 0);
+        wrap.addView(label, tlp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, dp(16), 0, dp(8));
+        content.addView(wrap, lp);
+    }
 
     private void gridTile(LinearLayout parent, String emoji, String label, int color, Runnable click) {
-    LinearLayout tile = column();
-    tile.setGravity(Gravity.CENTER);
-    tile.setPadding(dp(8), dp(9), dp(8), dp(9));
-    tile.setBackground(shape(dark ? Color.rgb(11, 31, 51) : Color.WHITE, 17,
-            dark ? Color.rgb(35, 66, 92) : Color.rgb(209, 223, 236)));
-    IconView ic = new IconView(label, GOLD);
-    LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(27), dp(27));
-    iconLp.bottomMargin = dp(8);
-    tile.addView(ic, iconLp);
-    TextView tx = text(label, 12, txt(), true);
-    tx.setGravity(Gravity.CENTER);
-    tile.addView(tx);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(88), 1);
-    lp.setMargins(dp(4), dp(4), dp(4), dp(4));
-    parent.addView(tile, lp);
-    tile.setOnClickListener(v -> click.run());
-}
+        LinearLayout tile = column();
+        tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setPadding(dp(11), dp(12), dp(11), dp(12));
+        tile.setBackground(ripple(gradientShape(
+                dark ? Color.rgb(19, 42, 62) : Color.WHITE,
+                dark ? Color.rgb(11, 27, 44) : Color.rgb(246, 249, 253), 18,
+                dark ? Color.rgb(39, 64, 84) : Color.rgb(211, 224, 237))));
+        tile.setElevation(dp(1));
+
+        LinearLayout inner = row();
+        inner.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        inner.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout words = column();
+        words.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        TextView tx = text(label, 12, txt(), true);
+        tx.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        tx.setMaxLines(2);
+        tx.setLineSpacing(dp(1), 1.0f);
+        words.addView(tx);
+        TextView desc = text(tileSubtitle(label), 9, muted(), false);
+        desc.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        desc.setMaxLines(1);
+        desc.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        words.addView(desc);
+        inner.addView(words, new LinearLayout.LayoutParams(0, -2, 1));
+
+        LinearLayout iconBox = column();
+        iconBox.setGravity(Gravity.CENTER);
+        iconBox.setBackground(gradientShape(dark ? Color.rgb(38, 52, 63) : Color.rgb(250, 244, 228),
+                dark ? Color.rgb(25, 41, 55) : Color.rgb(255, 251, 242), 13,
+                dark ? Color.rgb(79, 72, 54) : Color.rgb(235, 219, 177)));
+        IconView ic = new IconView(label, GOLD);
+        iconBox.addView(ic, new LinearLayout.LayoutParams(dp(25), dp(25)));
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(39), dp(39));
+        iconLp.setMargins(dp(8), 0, 0, 0);
+        inner.addView(iconBox, iconLp);
+        tile.addView(inner, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(83), 1);
+        lp.setMargins(dp(4), dp(4), dp(4), dp(4));
+        parent.addView(tile, lp);
+        tile.setOnClickListener(v -> {
+            v.animate().scaleX(0.985f).scaleY(0.985f).setDuration(75).withEndAction(() -> {
+                v.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+                click.run();
+            }).start();
+        });
+        animateIn(tile);
+    }
+
+    private String tileSubtitle(String label) {
+        if (label.contains("ثبت پرونده")) return "ساختمان و سرویس جدید";
+        if (label.contains("امروز")) return "برنامهٔ امروز";
+        if (label.contains("انجام")) return "سوابق تکمیل‌شده";
+        if (label.contains("همه")) return "مرور سرویس‌ها";
+        if (label.contains("طلب")) return "پیگیری مبالغ";
+        if (label.contains("تنظیمات")) return "شخصی‌سازی برنامه";
+        return "مشاهدهٔ جزئیات";
+    }
 
     private void stat(LinearLayout parent, String label, int count, int color) {
-    LinearLayout box = column();
-    box.setGravity(Gravity.CENTER);
-    box.setPadding(dp(9), dp(10), dp(9), dp(10));
-    box.setBackground(shape(dark ? Color.rgb(11, 31, 51) : Color.WHITE, 15,
-            dark ? Color.rgb(35, 66, 92) : Color.rgb(209, 223, 236)));
-    TextView n = text(String.valueOf(count), 21, GOLD, true);
-    n.setGravity(Gravity.CENTER);
-    box.addView(n);
-    TextView l = text(label, 11, txt(), false);
-    l.setGravity(Gravity.CENTER);
-    box.addView(l);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
-    lp.setMargins(dp(4), 0, dp(4), 0);
-    parent.addView(box, lp);
-}
+        LinearLayout box = column();
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(10), dp(11), dp(10), dp(11));
+        box.setBackground(gradientShape(dark ? Color.rgb(17, 39, 58) : Color.WHITE,
+                dark ? Color.rgb(11, 27, 43) : Color.rgb(246, 249, 253), 17,
+                dark ? Color.rgb(38, 62, 82) : Color.rgb(213, 225, 237)));
+        TextView n = text(String.valueOf(count), 23, GOLD, true);
+        n.setGravity(Gravity.CENTER);
+        box.addView(n);
+        View accent = new View(this);
+        accent.setBackground(shape(GOLD, 3, 0));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(27), dp(2));
+        ap.gravity = Gravity.CENTER;
+        ap.setMargins(0, dp(4), 0, dp(4));
+        box.addView(accent, ap);
+        TextView l = text(label, 10, muted(), true);
+        l.setGravity(Gravity.CENTER);
+        l.setMaxLines(2);
+        box.addView(l);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(82), 1);
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        parent.addView(box, lp);
+        animateIn(box);
+    }
 
     private void addBottomNav() {
-    LinearLayout nav = row();
-    nav.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    nav.setPadding(dp(6), dp(6), dp(6), dp(6));
-    nav.setBackground(shape(dark ? Color.rgb(7, 22, 38) : Color.rgb(250, 252, 255), 20,
-            dark ? Color.rgb(36, 66, 91) : Color.rgb(208, 221, 234)));
-    navItem(nav, "home", "خانه", page.equals("home"), () -> showHome());
-    navItem(nav, "files", "پرونده‌ها", page.equals("services") || page.equals("buildings"), () -> showServiceList("all"));
-    navItem(nav, "register", "ثبت", page.equals("register"), () -> showForm("services"));
-    navItem(nav, "debts", "طلب‌ها", page.equals("debts"), () -> showList("debts"));
-    navItem(nav, "settings", "تنظیمات", page.equals("settings"), () -> showSettings());
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.setMargins(dp(10), dp(4), dp(10), dp(7));
-    root.addView(nav, lp);
-}
+        LinearLayout nav = row();
+        nav.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        nav.setPadding(dp(7), dp(6), dp(7), dp(6));
+        nav.setBackground(gradientShape(dark ? Color.rgb(14, 31, 48) : Color.WHITE,
+                dark ? Color.rgb(7, 19, 33) : Color.rgb(246, 249, 253), 22,
+                dark ? Color.rgb(45, 68, 87) : Color.rgb(213, 225, 237)));
+        nav.setElevation(dp(7));
+        navItem(nav, "home", "خانه", page.equals("home"), () -> showHome());
+        navItem(nav, "files", "پرونده‌ها", page.equals("services") || page.equals("buildings"), () -> showServiceList("all"));
+        navItem(nav, "register", "ثبت", page.equals("register"), () -> showForm("services"));
+        navItem(nav, "debts", "طلب‌ها", page.equals("debts"), () -> showList("debts"));
+        navItem(nav, "settings", "تنظیمات", page.equals("settings"), () -> showSettings());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(dp(12), dp(5), dp(12), dp(9));
+        root.addView(nav, lp);
+    }
 
     private void navItem(LinearLayout nav, String icon, String label, boolean selected, Runnable action) {
-    LinearLayout item = column();
-    item.setGravity(Gravity.CENTER);
-    item.setPadding(dp(3), dp(5), dp(3), dp(5));
-    item.setBackground(shape(selected ? (dark ? Color.rgb(20, 45, 68) : Color.rgb(239, 246, 252)) : Color.TRANSPARENT,
-            13, selected && dark ? Color.rgb(45, 76, 100) : Color.TRANSPARENT));
-    IconView mark = new IconView(icon, selected ? GOLD : muted());
-    item.addView(mark, new LinearLayout.LayoutParams(dp(23), dp(23)));
-    TextView title = text(label, 10, selected ? GOLD : muted(), selected);
-    title.setGravity(Gravity.CENTER);
-    item.addView(title);
-    nav.addView(item, new LinearLayout.LayoutParams(0, -2, 1));
-    item.setOnClickListener(v -> action.run());
-}
+        LinearLayout item = column();
+        item.setGravity(Gravity.CENTER);
+        item.setPadding(dp(3), dp(5), dp(3), dp(4));
+        item.setBackground(ripple(shape(selected ? (dark ? Color.rgb(31, 48, 61) : Color.rgb(250, 244, 230)) : Color.TRANSPARENT,
+                14, selected ? (dark ? Color.rgb(91, 78, 51) : Color.rgb(237, 220, 178)) : Color.TRANSPARENT)));
+        IconView mark = new IconView(icon, selected ? GOLD : muted());
+        item.addView(mark, new LinearLayout.LayoutParams(dp(23), dp(23)));
+        TextView title = text(label, 10, selected ? GOLD : muted(), selected);
+        title.setGravity(Gravity.CENTER);
+        title.setMaxLines(1);
+        item.addView(title);
+        View indicator = new View(this);
+        indicator.setBackground(shape(GOLD, 3, 0));
+        LinearLayout.LayoutParams indicatorLp = new LinearLayout.LayoutParams(dp(16), dp(2));
+        indicatorLp.gravity = Gravity.CENTER;
+        indicatorLp.topMargin = dp(3);
+        if (selected) item.addView(indicator, indicatorLp);
+        nav.addView(item, new LinearLayout.LayoutParams(0, -2, 1));
+        item.setOnClickListener(v -> action.run());
+    }
 
     private void showForm(String type) {
     page = "register";
@@ -514,108 +708,177 @@ private void addSectionHeading(String title) {
 }
 
     private void showServiceList(String filter) {
-    page = "services";
-    String screenTitle = filter.equals("completed") ? "سرویس‌های انجام‌شده" :
-            filter.equals("today") ? "سرویس‌های سررسید امروز" :
-            filter.equals("overdue") ? "سرویس‌های عقب‌افتاده" :
-            filter.equals("pending") ? "سرویس‌های باز" : "پرونده‌های ساختمان و سرویس";
-    setup(screenTitle);
-    LinearLayout tabArea = column();
-    LinearLayout tabsTop = row();
-    tabsTop.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    tab(tabsTop, "سررسید امروز", filter.equals("today"), () -> showServiceList("today"));
-    tab(tabsTop, "عقب‌افتاده", filter.equals("overdue"), () -> showServiceList("overdue"));
-    tab(tabsTop, "سرویس‌های باز", filter.equals("pending"), () -> showServiceList("pending"));
-    tabArea.addView(tabsTop);
-    LinearLayout tabsBottom = row();
-    tabsBottom.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-    tab(tabsBottom, "انجام‌شده", filter.equals("completed"), () -> showServiceList("completed"));
-    tab(tabsBottom, "همهٔ سرویس‌ها", filter.equals("all"), () -> showServiceList("all"));
-    tabArea.addView(tabsBottom);
-    content.addView(tabArea);
+        page = "services";
+        String screenTitle = filter.equals("completed") ? "سرویس‌های انجام‌شده" :
+                filter.equals("today") ? "سرویس‌های سررسید امروز" :
+                filter.equals("overdue") ? "سرویس‌های عقب‌افتاده" :
+                filter.equals("pending") ? "سرویس‌های باز" : "پرونده‌های ساختمان و سرویس";
+        setup(screenTitle);
 
-    LinearLayout summary = column();
-    summary.addView(text("امروز  ·  " + todayJalali(), 13, GOLD, true));
-    summary.addView(text("سرویس‌های باز امروز: " + db.countTodayServices(todayJalali()), 12, muted(), false));
-    card(content, summary);
+        LinearLayout tabsTop = row();
+        tabsTop.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        tab(tabsTop, "امروز", filter.equals("today"), () -> showServiceList("today"));
+        tab(tabsTop, "عقب‌افتاده", filter.equals("overdue"), () -> showServiceList("overdue"));
+        tab(tabsTop, "سرویس‌های باز", filter.equals("pending"), () -> showServiceList("pending"));
+        content.addView(tabsTop);
+        LinearLayout tabsBottom = row();
+        tabsBottom.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        tab(tabsBottom, "انجام‌شده", filter.equals("completed"), () -> showServiceList("completed"));
+        tab(tabsBottom, "همهٔ سرویس‌ها", filter.equals("all"), () -> showServiceList("all"));
+        content.addView(tabsBottom);
 
-    Cursor c = db.serviceList(filter, todayJalali());
-    if (c.getCount() == 0) {
-        LinearLayout empty = column(); empty.setGravity(Gravity.CENTER); empty.setPadding(dp(18), dp(28), dp(18), dp(28));
-        TextView e = text("—", 28, GOLD, true); e.setGravity(Gravity.CENTER); empty.addView(e);
-        String emptyMessage = filter.equals("today") ? "برای امروز سرویسی ثبت نشده است" :
-                filter.equals("overdue") ? "سرویس عقب‌افتاده‌ای ندارید؛ عالی است" :
-                filter.equals("completed") ? "هنوز سرویس انجام‌شده‌ای ثبت نشده است" :
-                filter.equals("pending") ? "سرویس بازی وجود ندارد" : "هنوز سرویسی ثبت نشده است";
-        TextView msg = text(emptyMessage, 14, muted(), false); msg.setGravity(Gravity.CENTER); empty.addView(msg);
-        card(content, empty);
-    }
-    while (c.moveToNext()) {
-        final int id = c.getInt(0);
-        String a = c.getString(1), date = c.getString(2), details = c.getString(3);
-        boolean done = c.getInt(4) == 1;
-        long serviceCost = c.getLong(5), repairCost = c.getLong(7);
-        String repairDetails = c.getString(6), address = c.getString(8), manager = c.getString(9), phone = c.getString(10);
-        int recurrenceMonths = c.getInt(11);
-        long recurrenceGroup = c.getLong(12);
-        String currentToday = todayJalali();
-        boolean overdue = !done && date != null && date.compareTo(currentToday) < 0;
-        boolean dueToday = !done && date != null && date.equals(currentToday);
-        String statusLabel = done ? "انجام شد" : overdue ? "عقب‌افتاده" : dueToday ? "سررسید امروز" : "در انتظار";
-        int statusText = done ? Color.rgb(145, 221, 192) : overdue ? Color.rgb(255, 157, 151) : dueToday ? GOLD : muted();
-        int statusBg = done ? Color.rgb(17, 64, 58) : overdue ? Color.rgb(83, 37, 44) : dueToday ? Color.rgb(65, 51, 28) : panel();
-        LinearLayout item = column();
-        LinearLayout titleRow = row();
-        titleRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        TextView badge = text(statusLabel, 10, statusText, true);
-        badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(9), dp(5), dp(9), dp(5));
-        badge.setBackground(shape(statusBg, 10, 0));
-        titleRow.addView(badge);
-        TextView nm = text(a, 16, txt(), true);
-        titleRow.addView(nm, new LinearLayout.LayoutParams(0, -2, 1));
-        item.addView(titleRow);
-        View divider = new View(this); divider.setBackgroundColor(dark ? Color.rgb(36, 63, 85) : Color.rgb(222, 231, 239));
-        LinearLayout.LayoutParams dv = new LinearLayout.LayoutParams(-1, dp(1)); dv.setMargins(0, dp(8), 0, dp(7)); item.addView(divider, dv);
-        item.addView(text("مدیر ساختمان: " + (manager == null || manager.isEmpty() ? "—" : manager), 12, txt(), false));
-        item.addView(text("شماره تماس: " + (phone == null || phone.isEmpty() ? "—" : phone), 12, muted(), false));
-        item.addView(text("آدرس: " + (address == null || address.isEmpty() ? "—" : address), 12, muted(), false));
-        item.addView(text("تاریخ سررسید: " + (date == null ? "—" : date), 12, GOLD, true));
-        if (recurrenceMonths > 0) {
-            item.addView(text("سرویس دوره‌ای: " + recurrenceLabel(recurrenceMonths) + " · مبلغ برای دوره‌های بعد حفظ می‌شود", 11, muted(), false));
+        LinearLayout summary = row();
+        summary.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        summary.setGravity(Gravity.CENTER_VERTICAL);
+        summary.setPadding(dp(14), dp(12), dp(14), dp(12));
+        summary.setBackground(gradientShape(dark ? Color.rgb(18, 40, 59) : Color.WHITE,
+                dark ? Color.rgb(10, 26, 42) : Color.rgb(246, 249, 253), 17,
+                dark ? Color.rgb(42, 67, 86) : Color.rgb(211, 224, 237)));
+        LinearLayout summaryWords = column();
+        summaryWords.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        summaryWords.addView(text("برنامهٔ سرویس", 13, txt(), true));
+        summaryWords.addView(text("امروز  ·  " + todayJalali(), 11, GOLD, true));
+        summary.addView(summaryWords, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView summaryNumber = text(String.valueOf(db.countTodayServices(todayJalali())), 20, GOLD, true);
+        summaryNumber.setGravity(Gravity.CENTER);
+        summaryNumber.setBackground(shape(dark ? Color.rgb(36, 50, 62) : Color.rgb(250, 243, 224), 13,
+                dark ? Color.rgb(83, 73, 49) : Color.rgb(237, 220, 178)));
+        summary.addView(summaryNumber, new LinearLayout.LayoutParams(dp(45), dp(43)));
+        card(content, summary);
+
+        Cursor c = db.serviceList(filter, todayJalali());
+        if (c.getCount() == 0) {
+            LinearLayout empty = column();
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(18), dp(28), dp(18), dp(28));
+            TextView e = text("✓", 27, GOLD, true); e.setGravity(Gravity.CENTER); empty.addView(e);
+            String emptyMessage = filter.equals("today") ? "برای امروز سرویسی ثبت نشده است" :
+                    filter.equals("overdue") ? "سرویس عقب‌افتاده‌ای ندارید؛ عالی است" :
+                    filter.equals("completed") ? "هنوز سرویس انجام‌شده‌ای ثبت نشده است" :
+                    filter.equals("pending") ? "سرویس بازی وجود ندارد" : "هنوز سرویسی ثبت نشده است";
+            TextView msg = text(emptyMessage, 14, muted(), false); msg.setGravity(Gravity.CENTER); empty.addView(msg);
+            card(content, empty);
         }
-        if (details != null && !details.isEmpty()) item.addView(text("توضیحات: " + details, 12, muted(), false));
-        item.addView(text("هزینهٔ سرویس: " + money(serviceCost) + " تومان", 12, txt(), false));
-        if (repairDetails != null && !repairDetails.isEmpty()) item.addView(text("شرح خرابی: " + repairDetails, 12, muted(), false));
-        if (repairCost > 0) item.addView(text("هزینهٔ تعمیرات: " + money(repairCost) + " تومان", 12, txt(), false));
-        item.addView(text("جمع کل: " + money(serviceCost + repairCost) + " تومان", 15, GOLD, true));
-        LinearLayout actions = row();
-        actions.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        if (!done) smallAction(actions, "✓  انجام شد", Color.rgb(36, 105, 93), () ->
-                new AlertDialog.Builder(this).setTitle("تأیید انجام سرویس")
-                        .setMessage(recurrenceMonths > 0
-                                ? "سرویس «" + a + "» انجام شده است؟ سررسید بعدی به‌صورت خودکار ایجاد می‌شود."
-                                : "آیا سرویس «" + a + "» انجام شده است؟")
-                        .setPositiveButton("بله، انجام شد", (d, w) -> {
-                            String nextDate = db.markServiceDoneAndScheduleNext(id, todayJalali());
-                            if (nextDate != null) toast("سرویس انجام شد؛ سررسید بعدی: " + nextDate);
-                            else toast("سرویس انجام‌شده ثبت شد");
-                            showServiceList(filter);
-                        })
-                        .setNegativeButton("انصراف", null).show());
-        if (recurrenceMonths > 0 && recurrenceGroup > 0) {
-            smallAction(actions, "تغییر مبلغ دوره‌ای", PANEL2, () -> changeRecurringAmount(recurrenceGroup, serviceCost, filter));
-        } else if (!done) {
-            smallAction(actions, "فعال‌کردن تکرار", PANEL2, () -> enableRecurrenceForExistingService(id, date, filter));
+        while (c.moveToNext()) {
+            final int id = c.getInt(0);
+            String a = c.getString(1), date = c.getString(2), details = c.getString(3);
+            boolean done = c.getInt(4) == 1;
+            long serviceCost = c.getLong(5), repairCost = c.getLong(7);
+            String repairDetails = c.getString(6), address = c.getString(8), manager = c.getString(9), phone = c.getString(10);
+            int recurrenceMonths = c.getInt(11);
+            long recurrenceGroup = c.getLong(12);
+            String currentToday = todayJalali();
+            boolean overdue = !done && date != null && date.compareTo(currentToday) < 0;
+            boolean dueToday = !done && date != null && date.equals(currentToday);
+            String statusLabel = done ? "انجام شد" : overdue ? "عقب‌افتاده" : dueToday ? "سررسید امروز" : "در انتظار";
+            int statusText = done ? Color.rgb(145, 221, 192) : overdue ? Color.rgb(255, 157, 151) : dueToday ? GOLD : muted();
+            int statusBg = done ? Color.rgb(17, 64, 58) : overdue ? Color.rgb(83, 37, 44) : dueToday ? Color.rgb(65, 51, 28) :
+                    (dark ? Color.rgb(29, 44, 56) : Color.rgb(242, 246, 250));
+
+            LinearLayout item = column();
+            LinearLayout titleRow = row();
+            titleRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            TextView nm = text(a == null ? "بدون نام" : a, 16, txt(), true);
+            nm.setMaxLines(2);
+            titleRow.addView(nm, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView badge = text(statusLabel, 10, statusText, true);
+            badge.setGravity(Gravity.CENTER);
+            badge.setPadding(dp(9), dp(6), dp(9), dp(6));
+            badge.setBackground(shape(statusBg, 10, done ? Color.rgb(40, 107, 89) : overdue ? Color.rgb(131, 65, 73) : 0));
+            LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(-2, -2);
+            badgeLp.setMargins(dp(7), 0, 0, 0);
+            titleRow.addView(badge, badgeLp);
+            item.addView(titleRow);
+
+            View divider = new View(this);
+            divider.setBackgroundColor(dark ? Color.rgb(41, 63, 81) : Color.rgb(224, 232, 240));
+            LinearLayout.LayoutParams dv = new LinearLayout.LayoutParams(-1, dp(1));
+            dv.setMargins(0, dp(10), 0, dp(9));
+            item.addView(divider, dv);
+
+            LinearLayout metaRow = row();
+            metaRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            metaCell(metaRow, "مدیر ساختمان", manager == null || manager.isEmpty() ? "—" : manager);
+            metaCell(metaRow, "شماره تماس", phone == null || phone.isEmpty() ? "—" : phone);
+            item.addView(metaRow);
+            if (address != null && !address.isEmpty()) {
+                TextView addressText = text("⌖  " + address, 11, muted(), false);
+                addressText.setMaxLines(2);
+                item.addView(addressText);
+            }
+            LinearLayout dueRow = row();
+            dueRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            dueRow.setPadding(dp(10), dp(8), dp(10), dp(8));
+            dueRow.setBackground(shape(dark ? Color.rgb(29, 43, 54) : Color.rgb(250, 245, 231), 12,
+                    dark ? Color.rgb(73, 68, 51) : Color.rgb(239, 223, 182)));
+            TextView dueLabel = text("سررسید", 11, muted(), true);
+            dueRow.addView(dueLabel, new LinearLayout.LayoutParams(0, -2, 1));
+            dueRow.addView(text(date == null ? "—" : date, 12, GOLD, true));
+            LinearLayout.LayoutParams dueLp = new LinearLayout.LayoutParams(-1, -2);
+            dueLp.setMargins(0, dp(7), 0, dp(3));
+            item.addView(dueRow, dueLp);
+
+            if (recurrenceMonths > 0) {
+                TextView repeat = text("↻  سرویس دوره‌ای " + recurrenceLabel(recurrenceMonths) + " · مبلغ برای دوره‌های بعد حفظ می‌شود", 10, muted(), false);
+                item.addView(repeat);
+            }
+            if (details != null && !details.isEmpty()) item.addView(text("توضیحات: " + details, 11, muted(), false));
+            if (repairDetails != null && !repairDetails.isEmpty()) item.addView(text("شرح خرابی: " + repairDetails, 11, muted(), false));
+
+            LinearLayout financial = column();
+            financial.setPadding(dp(12), dp(10), dp(12), dp(10));
+            financial.setBackground(gradientShape(dark ? Color.rgb(24, 43, 57) : Color.rgb(251, 247, 237),
+                    dark ? Color.rgb(15, 31, 45) : Color.rgb(247, 242, 229), 15,
+                    dark ? Color.rgb(72, 69, 52) : Color.rgb(237, 222, 186)));
+            financial.addView(text("مبلغ سرویس  " + money(serviceCost) + " تومان", 11, muted(), false));
+            if (repairCost > 0) financial.addView(text("تعمیرات  " + money(repairCost) + " تومان", 11, muted(), false));
+            financial.addView(text("جمع کل  ·  " + money(serviceCost + repairCost) + " تومان", 16, GOLD, true));
+            LinearLayout.LayoutParams financialLp = new LinearLayout.LayoutParams(-1, -2);
+            financialLp.setMargins(0, dp(8), 0, dp(2));
+            item.addView(financial, financialLp);
+
+            LinearLayout actions = row();
+            actions.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            if (!done) smallAction(actions, "✓ انجام شد", Color.rgb(36, 105, 93), () ->
+                    new AlertDialog.Builder(this).setTitle("تأیید انجام سرویس")
+                            .setMessage(recurrenceMonths > 0
+                                    ? "سرویس «" + a + "» انجام شده است؟ سررسید بعدی به‌صورت خودکار ایجاد می‌شود."
+                                    : "آیا سرویس «" + a + "» انجام شده است؟")
+                            .setPositiveButton("بله، انجام شد", (d, w) -> {
+                                String nextDate = db.markServiceDoneAndScheduleNext(id, todayJalali());
+                                if (nextDate != null) toast("سرویس انجام شد؛ سررسید بعدی: " + nextDate);
+                                else toast("سرویس انجام‌شده ثبت شد");
+                                showServiceList(filter);
+                            })
+                            .setNegativeButton("انصراف", null).show());
+            if (recurrenceMonths > 0 && recurrenceGroup > 0) {
+                smallAction(actions, "تغییر مبلغ دوره‌ای", PANEL2, () -> changeRecurringAmount(recurrenceGroup, serviceCost, filter));
+            } else if (!done) {
+                smallAction(actions, "فعال‌کردن تکرار", PANEL2, () -> enableRecurrenceForExistingService(id, date, filter));
+            }
+            smallAction(actions, "حذف", Color.rgb(142, 55, 65), () -> confirmDelete(id, "services"));
+            item.addView(actions);
+            card(content, item);
         }
-        smallAction(actions, "حذف", Color.rgb(142, 55, 65), () -> confirmDelete(id, "services"));
-        item.addView(actions);
-        card(content, item);
+        c.close();
+        addButton("＋ ثبت پروندهٔ ساختمان و سرویس", GOLD, () -> showForm("services"));
+        addButton("بازگشت به خانه", PANEL2, () -> showHome());
     }
-    c.close();
-    addButton("+ ثبت پرونده ساختمان و سرویس", GOLD, () -> showForm("services"));
-    addButton("بازگشت به خانه", PANEL2, () -> showHome());
-}
+
+    private void metaCell(LinearLayout parent, String title, String value) {
+        LinearLayout cell = column();
+        cell.setPadding(dp(9), dp(8), dp(9), dp(8));
+        cell.setBackground(shape(dark ? Color.rgb(20, 37, 53) : Color.rgb(246, 249, 253), 12,
+                dark ? Color.rgb(34, 57, 75) : Color.rgb(218, 229, 239)));
+        cell.addView(text(title, 9, muted(), false));
+        TextView val = text(value, 11, txt(), true);
+        val.setMaxLines(2);
+        val.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        cell.addView(val);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        parent.addView(cell, lp);
+    }
 
     private int jalaliDay(String date) {
         if (date == null) return 0;
@@ -667,32 +930,41 @@ private void addSectionHeading(String title) {
     }
 
     private void tab(LinearLayout parent, String label, boolean selected, Runnable action) {
-    TextView t = text(label, 11, selected ? NAVY : txt(), true);
-    t.setGravity(Gravity.CENTER);
-    t.setPadding(dp(4), dp(10), dp(4), dp(10));
-    t.setBackground(shape(selected ? GOLD : panel(), 12,
-            selected ? GOLD : (dark ? Color.rgb(40, 69, 94) : Color.rgb(209, 222, 234))));
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
-    lp.setMargins(dp(2), dp(5), dp(2), dp(7));
-    parent.addView(t, lp);
-    t.setOnClickListener(v -> action.run());
-}
+        TextView t = text(label, 11, selected ? NAVY : txt(), true);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(5), dp(10), dp(5), dp(10));
+        t.setMinHeight(dp(40));
+        GradientDrawable base = selected
+                ? gradientShape(Color.rgb(247, 212, 132), GOLD, 13, Color.rgb(255, 231, 179))
+                : gradientShape(dark ? Color.rgb(16, 35, 53) : Color.rgb(255, 255, 255),
+                    dark ? Color.rgb(11, 27, 43) : Color.rgb(246, 249, 253), 13,
+                    dark ? Color.rgb(39, 63, 83) : Color.rgb(211, 224, 237));
+        t.setBackground(ripple(base));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
+        lp.setMargins(dp(3), dp(4), dp(3), dp(5));
+        parent.addView(t, lp);
+        t.setOnClickListener(v -> action.run());
+    }
 
     private void smallAction(LinearLayout parent, String label, int color, Runnable action) {
-    boolean danger = label.contains("حذف");
-    boolean done = label.contains("انجام");
-    int bgColor = danger ? Color.rgb(83, 37, 44) : done ? Color.rgb(20, 66, 58) : panel();
-    int stroke = danger ? Color.rgb(132, 63, 72) : done ? Color.rgb(45, 112, 93) : Color.rgb(45, 74, 99);
-    int textColor = danger ? Color.rgb(255, 185, 190) : done ? Color.rgb(167, 230, 207) : txt();
-    TextView t = text(label, 11, textColor, true);
-    t.setGravity(Gravity.CENTER);
-    t.setPadding(dp(11), dp(9), dp(11), dp(9));
-    t.setBackground(shape(bgColor, 11, stroke));
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
-    lp.setMargins(dp(3), dp(8), dp(3), 0);
-    parent.addView(t, lp);
-    t.setOnClickListener(v -> action.run());
-}
+        boolean danger = label.contains("حذف");
+        boolean done = label.contains("انجام");
+        int bgColor = danger ? (dark ? Color.rgb(61, 32, 40) : Color.rgb(255, 241, 240))
+                : done ? (dark ? Color.rgb(19, 59, 53) : Color.rgb(234, 248, 242)) : panel();
+        int stroke = danger ? Color.rgb(131, 65, 73) : done ? Color.rgb(45, 112, 93)
+                : (dark ? Color.rgb(45, 71, 91) : Color.rgb(211, 224, 237));
+        int textColor = danger ? Color.rgb(255, 185, 190) : done ? Color.rgb(167, 230, 207) : txt();
+        TextView t = text(label, 10, textColor, true);
+        t.setGravity(Gravity.CENTER);
+        t.setMinHeight(dp(40));
+        t.setMaxLines(2);
+        t.setPadding(dp(5), dp(8), dp(5), dp(8));
+        t.setBackground(ripple(shape(bgColor, 12, stroke)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
+        lp.setMargins(dp(3), dp(8), dp(3), 0);
+        parent.addView(t, lp);
+        t.setOnClickListener(v -> action.run());
+    }
 
         private String money(long amount) {
         java.text.NumberFormat f=java.text.NumberFormat.getInstance(new java.util.Locale("fa","IR"));
